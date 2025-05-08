@@ -12,11 +12,10 @@ Features:
 import asyncio
 import re
 import sys
-import os
 import argparse
 from pathlib import Path
-from urllib.parse import urlparse, unquote, urljoin
-from typing import List, Optional, Dict, Any
+from urllib.parse import urlparse, unquote
+from typing import List, Optional
 
 # --- Dependency Check ---
 try:
@@ -40,7 +39,7 @@ def create_url_pattern_from_start_url(start_url: str) -> str:
     parsed = urlparse(start_url)
     # Extract base domain and path
     base = f"{parsed.scheme}://{parsed.netloc}"
-    
+
     # If there's a specific path, make it the base of our pattern
     if parsed.path and parsed.path != '/':
         # Remove trailing slash if present
@@ -50,8 +49,9 @@ def create_url_pattern_from_start_url(start_url: str) -> str:
     else:
         # If no specific path, match anything on the domain
         pattern = f"{base}/*"
-    
+
     return pattern
+
 
 def parse_arguments():
     """Parse command-line arguments."""
@@ -59,45 +59,46 @@ def parse_arguments():
         description="Crawl a website and convert its pages to Markdown files",
         epilog="Example: python scrape_folder_to_markdown.py https://code.visualstudio.com/api vscode_docs"
     )
-    
+
     parser.add_argument(
         "url", 
         help="Starting URL to crawl (e.g., https://code.visualstudio.com/api)"
     )
-    
+
     parser.add_argument(
         "output_dir", 
         help="Directory to save Markdown files (e.g., vscode_docs)"
     )
-    
+
     parser.add_argument(
         "-d", "--depth", 
-        type=int, 
+        type=int,
         default=3,
         help="Maximum crawl depth (default: 3, recommended max: 5)"
     )
-    
+
     parser.add_argument(
         "-q", "--quiet", 
         action="store_true",
         help="Reduce console logging for quieter operation"
     )
-    
+
     return parser.parse_args()
+
 
 def url_to_filepath(url: str, base_dir: str, start_url: str) -> Optional[Path]:
     """
     Converts a URL to a sanitized, structured local filepath within the base_dir.
-    Assumes URL has already been filtered to be within the desired path.
+    Creates a flat folder structure with related pages in the same directory.
     """
     try:
         parsed_url = urlparse(url)
         parsed_start = urlparse(start_url)
-        
+
         # Remove leading '/' and decode URL encoding
         path_part = unquote(parsed_url.path.lstrip('/'))
         path_part = path_part.split('#')[0]  # Remove fragment
-        
+
         # Sanitize path components
         safe_components = []
         for component in path_part.split('/'):
@@ -107,66 +108,81 @@ def url_to_filepath(url: str, base_dir: str, start_url: str) -> Optional[Path]:
             safe_component = safe_component[:100]  # Limit component length
             if safe_component:
                 safe_components.append(safe_component)
-        
-        # Check if this is the same as the start URL (e.g., domain root or specified path)
+
+        # Extract the path components from the start URL for comparison
         start_path = parsed_start.path.strip('/')
         start_components = [c for c in start_path.split('/') if c]
-        is_start_path = False
-        
-        # Check if this URL matches the start path
-        if start_components:
-            # There is a specific start path to compare against
-            if len(safe_components) >= len(start_components):
-                is_start_path = safe_components[:len(start_components)] == start_components
-        else:
-            # Start URL was just the domain
-            is_start_path = len(safe_components) == 0
-        
-        # Handle the case where URL is the start URL or ends with /
-        if not safe_components or parsed_url.path.endswith('/') or is_start_path:
-            filename = "index.md"
-            # Use all components for directory path if it's an index
-            dir_components = safe_components
-        else:
-            # Otherwise, last component is filename, rest is directory path
-            last_component = safe_components[-1]
-            # Check if last component already ends with .md (case-insensitive)
-            if last_component.lower().endswith(".md"):
-                filename = last_component  # Use as is
+
+        # Check if this is the start URL itself
+        if url == start_url or (len(safe_components) <= len(start_components) and
+                               all(a == b for a, b in zip(safe_components, start_components))):
+            # This is the start URL or a parent of it - save as index.md in root
+            return Path(base_dir) / "index.md"
+
+        # Determine which components to use for directory and filename
+        # Skip components that are part of the start_url
+        remaining_components = safe_components[len(start_components):]
+
+        if not remaining_components:
+            # If nothing remains after removing start components, use index.md
+            return Path(base_dir) / "index.md"
+
+        # For pages directly under the start URL with no further path components
+        if len(remaining_components) == 1:
+            if parsed_url.path.endswith('/'):
+                # It's a directory-like page - save as index.md in a subfolder
+                folder_name = remaining_components[0]
+                return Path(base_dir) / folder_name / "index.md"
             else:
-                filename = last_component + ".md"  # Append .md
-            dir_components = safe_components[:-1]
-        
-        # Create the full path using pathlib for cross-platform compatibility
-        full_dir_path = Path(base_dir).joinpath(*dir_components)
-        filepath = full_dir_path / filename
-        return filepath
-    
-    except Exception as e:
+                # It's a page - save as {name}.md in the base directory
+                filename = remaining_components[0]
+                if not filename.lower().endswith(".md"):
+                    filename += ".md"
+                return Path(base_dir) / filename
+
+        # For nested paths, use the first component after start_url as the directory
+        # and the last component as the filename
+        section_dir = remaining_components[0]
+
+        # If the URL ends with /, use the last path component as the filename
+        if parsed_url.path.endswith('/'):
+            filename = remaining_components[-1]
+        else:
+            filename = remaining_components[-1]
+
+        if not filename.lower().endswith(".md"):
+            filename += ".md"
+
+        # Create path using section directory and filename
+        return Path(base_dir) / section_dir / filename
+
+    except Exception as e:  # pylint: disable=broad-except
         # Catch potential errors during path conversion
         print(f"  [ERROR] Could not convert URL '{url}' to filepath: {e}")
         return None
 
+
 async def main():
     """Main function to run the web crawler."""
     args = parse_arguments()
-    
+
     # Set up configuration from arguments
+    # pylint: disable=invalid-name
     START_URL = args.url
     OUTPUT_DIR = args.output_dir
     MAX_DEPTH = args.depth
     VERBOSE_LOGGING = not args.quiet
-    
+
     # Generate the URL pattern from the start URL
     API_URL_PATTERN = create_url_pattern_from_start_url(START_URL)
-    
+
     print("--- Web Scraper using Crawl4AI (Filtered Crawl) ---")
     print(f"Starting crawl from: {START_URL}")
     print(f"Saving Markdown files to: '{OUTPUT_DIR}/'")
     print(f"Filtering crawl to URL pattern: {API_URL_PATTERN}")
     print(f"Max crawl depth: {MAX_DEPTH}")
     print("-" * 50)
-    
+
     # Ensure output directory exists and is writable
     output_path = Path(OUTPUT_DIR)
     try:
@@ -178,17 +194,17 @@ async def main():
     except PermissionError:
         print(f"[ERROR] Output directory '{OUTPUT_DIR}' is not writable. Please check permissions.")
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         print(f"[ERROR] Failed to create or access output directory '{OUTPUT_DIR}': {e}")
         sys.exit(1)
-    
+
     # --- Configure Crawl-Time Filtering ---
     # Create a filter to match only URLs within the specified path
     api_url_filter = URLPatternFilter(patterns=[API_URL_PATTERN])
     # Create a filter chain containing the URL filter
     filter_chain = FilterChain([api_url_filter])
     # --- End Filter Configuration ---
-    
+
     # Configure the deep crawl strategy using the filter_chain
     config = CrawlerRunConfig(
         deep_crawl_strategy=BFSDeepCrawlStrategy(
@@ -198,10 +214,10 @@ async def main():
         ),
         verbose=VERBOSE_LOGGING
     )
-    
+
     scraped_count = 0
     results: List[CrawlResult] = []
-    
+
     try:
         async with AsyncWebCrawler() as crawler:
             print("Crawler initialized. Starting filtered crawl...")
@@ -215,16 +231,16 @@ async def main():
         print("Consider updating crawl4ai (`pip install -U crawl4ai`) or "
               "reverting to a script version that used post-crawl filtering.")
         return
-    except Exception as e:  # Catch other broad exceptions during crawl
+    except Exception as e:  # pylint: disable=broad-except
         print(f"\n[ERROR] A critical error occurred during crawling: {e}")
         if not results:
             print("No results obtained.")
             return  # Exit if crawl failed early
-    
+
     print("\n--- Crawl Finished ---")
     print(f"Attempted to process {len(results)} pages matching the filter and depth limits.")
     print("Processing results and saving Markdown files...")
-    
+
     # Process results and save relevant files
     for result in results:
         # Double-check success and markdown content
@@ -239,12 +255,12 @@ async def main():
                     scraped_count += 1
                 except OSError as e:  # Catch file system errors specifically
                     print(f"  [ERROR] Could not save file {filepath}: {e}")
-                except Exception as e:  # Catch other unexpected errors during file save
+                except Exception as e:  # pylint: disable=broad-except
                     print(f"  [ERROR] Unexpected error processing {result.url}: {e}")
         elif not result.success:
             # Log failed pages
             print(f"  [FAILED] {result.url} (Status: {result.status_code}, Error: {result.error})")
-    
+
     print("-" * 50)
     print(f"Successfully saved {scraped_count} Markdown files matching "
           f"'{API_URL_PATTERN}' path to '{OUTPUT_DIR}'.")
