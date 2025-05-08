@@ -1,8 +1,10 @@
-# Crawl4AI for VS Code API Documentation Scraping
+# Crawl4AI Website Scraper for LLM-Friendly Documentation
 
-This project uses [Crawl4AI](https://github.com/unclecode/crawl4ai) to create a local, searchable copy of the API documentation.
+This project provides tools to create local, searchable Markdown copies of any website content using [Crawl4AI](https://github.com/unclecode/crawl4ai).
 
-## Step 1: Create a Virtual Environment
+## Setup
+
+### Step 1: Create a Virtual Environment
 
 ```bash
 # Create a virtual environment named .venv
@@ -15,9 +17,7 @@ python -m venv .venv
 # source .venv/bin/activate
 ```
 
-## Step 2: Install Dependencies
-
-Once your virtual environment is activated, install the required packages:
+### Step 2: Install Dependencies
 
 ```bash
 # Install required packages
@@ -30,29 +30,64 @@ crawl4ai-setup
 crawl4ai-doctor
 ```
 
-## Step 3: Run the Scraper
+## Main Tool: Website Folder Crawler
 
-### Single Page Scraping
+The `scrape_folder_to_markdown.py` script is a powerful, generic crawler that can scrape any website section and save its content as Markdown files.
+
+### Features
+
+- Automatically crawls an entire website section with configurable depth
+- Maintains folder structure that mirrors the original website
+- Filters URLs to stay within the section you specify
+- Uses smart path handling to create well-organized local files
+- Includes progress reporting and error handling
+
+### Usage
 
 ```bash
-# Convert a single page (if using the standalone script)
+# Basic usage
+python src/scrape_folder_to_markdown.py <start-url> <output-directory>
+
+# With optional parameters
+python src/scrape_folder_to_markdown.py <start-url> <output-directory> --depth <max-depth> --quiet
+```
+
+### Examples
+
+```bash
+# Scrape VS Code API documentation (depth: 3)
+python src/scrape_folder_to_markdown.py https://code.visualstudio.com/api vscode_docs
+
+# Scrape Python documentation with greater depth (depth: 5)
+python src/scrape_folder_to_markdown.py https://docs.python.org/3/library python_docs --depth 5
+
+# Scrape Anthropic's Prompt Engineering guide with minimal logging
+python src/scrape_folder_to_markdown.py https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/ anthropic_guide --quiet
+```
+
+After running, your output directory will contain Markdown files that can be used with AI assistants like Claude, ChatGPT, or coding tools like Aider and Cline.
+
+## Additional Tools
+
+### Single Page Scraper
+
+For quick single-page conversions, you can use the standalone script:
+
+```bash
 python src/scrape_page_to_markdown.py
 ```
 
-Single page scraper implements the idea from [@AICodeKing](https://www.youtube.com/@AICodeKing)'s video [Crawl4AI + Aider & Cline : AI Coding with WEB SCRAPING is AMAZING! (Knowledge Base & Documentation)](https://www.youtube.com/watch?v=W7V1J6EFiUs):
+This tool implements the idea from [@AICodeKing](https://www.youtube.com/@AICodeKing)'s video [Crawl4AI + Aider & Cline : AI Coding with WEB SCRAPING is AMAZING!](https://www.youtube.com/watch?v=W7V1J6EFiUs):
 
 ![idea](images/crawl4ai_scraper.jpg)
 
-### Recursive Scraping
+### VS Code API Documentation Scraper
 
-Way too often, we need to scrape the whole subtree. E.g. here's the script I wrote to fetch all VSCode APIs. Use it as a starting point to get your APIs converted into LLM-friendly Markdown format:
+For a specialized VS Code API scraper with pre-configured settings:
 
 ```bash
-# Full VS Code API documentation crawl
 python src/scrape_vscode_api_docs.py
 ```
-
-After running the script, you'll find the VS Code API documentation saved as Markdown files in the `vscode_api_docs` directory with a structure that mirrors the original website.
 
 ## Troubleshooting
 
