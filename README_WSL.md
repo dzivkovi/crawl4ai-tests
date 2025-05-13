@@ -1,4 +1,4 @@
-# WSL Development Guide for Git Repositories
+# WSL Configuration Guide for AI-Powered Development
 
 Windows Subsystem for Linux (WSL) has become an essential development environment for Windows users, providing a seamless bridge between Windows and Linux development workflows. Beyond offering native Linux tooling, WSL enables access to powerful AI coding assistants like:
 
@@ -6,16 +6,56 @@ Windows Subsystem for Linux (WSL) has become an essential development environmen
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) - an Agentic Coding Tool by Anthropic that transforms development through its "Explore, plan, code, commit" workflow. According to Anthropic's [best practices guide](https://www.anthropic.com/engineering/claude-code-best-practices), Claude Code first explores your codebase, then uses different thinking intensities ("think" to "ultrathink") to create implementation plans before writing code. This methodical approach prevents rushing to solutions for complex problems, with Claude handling everything from initial exploration to final pull requests—all through natural language commands. This workflow particularly shines when thoughtful architecture is needed rather than quick code generation.
 
-This guide addresses common Git issues when working with repositories in WSL and provides solutions for a streamlined development experience.
+## Setting Up WSL for AI-Assisted Development
 
-## Common Issue: False "Modified Files"
+To use AI tools like Claude Code effectively with WSL, you'll need to set up your environment properly. Follow these steps to install the essential components:
+
+1. **Install Windows Subsystem for Linux (WSL)**
+   - Follow the [official Microsoft WSL setup guide](https://learn.microsoft.com/en-us/windows/wsl/setup/environment)
+   - We recommend Ubuntu as the Linux distribution for compatibility
+
+2. **Install Development Tools**
+   - These tools are required for Claude Code and other AI assistants to function properly
+   - **Python**: Follow [Microsoft's Python in WSL guide](https://learn.microsoft.com/en-us/windows/python/web-frameworks#install-windows-subsystem-for-linux)
+   - **Node.js**: Follow [Microsoft's Node.js on WSL guide](https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl)
+
+3. **Configure VS Code for WSL**
+   - Follow the [VS Code with WSL tutorial](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-vscode)
+   - This enables VS Code to seamlessly work with your WSL environment
+
+These setup steps create the foundation needed for AI-powered development tools to effectively analyze and modify your codebase.
+
+## Setting Up Git for WSL Development
+
+This section addresses common Git issues when working with repositories in WSL and provides solutions for a streamlined development experience.
+
+### Git User Configuration
+
+When working with Git in WSL, you'll need to set up your user identity for commits:
+
+```bash
+# Configure your Git user information
+git config user.email "your.email@example.com"  # Use your actual email
+git config user.name "Your Name"                # Use your actual name
+```
+
+If you have authentication issues when pushing to repositories, configure Git to use the Windows credential manager:
+
+```bash
+# Configure Git to use Windows credential manager
+git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"
+```
+
+This allows you to use your Windows-stored credentials for Git operations in WSL.
+
+### Common Issue: False "Modified Files"
 
 When accessing Windows-based repositories through WSL's `/mnt/` paths, Git may incorrectly show numerous files as modified even when no changes have been made. This occurs due to:
 
 1. **Line endings**: Windows uses CRLF (`\r\n`) while Linux uses LF (`\n`)
 2. **File permissions**: WSL tracks executable bits that Windows Git ignores 
 
-## Quick Fix Script
+### Quick Fix Script
 
 Run this script when working with a repository in WSL:
 
@@ -29,7 +69,7 @@ cd /mnt/c/Users/your/path/to/repository
 
 This script configures Git for WSL compatibility and resets any false modifications.
 
-## Manual Configuration
+### Manual Configuration
 
 If you prefer to understand what's happening, here are the key commands:
 
@@ -48,7 +88,7 @@ git config core.fileMode false
 git reset --hard
 ```
 
-## Recommended `.gitattributes` File
+### Recommended `.gitattributes` File
 
 For optimal cross-platform compatibility, add this `.gitattributes` file to your repository:
 
